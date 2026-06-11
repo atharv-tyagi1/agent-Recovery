@@ -1,0 +1,7 @@
+fastapi==0.104.1
+pydantic==1.10.15
+uvicorn
+python-multipart
+aiofiles
+httpx
+reportlab
