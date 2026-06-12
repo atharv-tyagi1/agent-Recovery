@@ -28,17 +28,23 @@ export default function ReportPage() {
   useEffect(() => {
     if (!scanId) return;
     Promise.all([
-      fetch(`http://localhost:8000/api/fixes/${scanId}`).then(r => r.json()),
-      fetch(`http://localhost:8000/api/completion/${scanId}`).then(r => r.json())
+      fetch(`http://localhost:8000/api/fixes/${scanId}`).then(r => {
+        if (!r.ok) throw new Error("Failed to fetch fixes");
+        return r.json();
+      }),
+      fetch(`http://localhost:8000/api/completion/${scanId}`).then(r => {
+        if (!r.ok) throw new Error("Failed to fetch completion data");
+        return r.json();
+      })
     ])
     .then(([vulnsData, compData]) => {
-      setVulns(vulnsData);
+      setVulns(Array.isArray(vulnsData) ? vulnsData : []);
       setCompletion(compData);
     })
-    .catch(console.error);
+    .catch((err) => console.log("Waiting for report data..."));
   }, [scanId]);
 
-  if (!completion) return <div className="p-8 text-center text-muted-foreground">Loading report...</div>;
+  if (!completion || completion.files_analyzed === undefined) return <div className="p-8 text-center text-muted-foreground">Loading report...</div>;
 
   const criticalCount = vulns.filter((v) => v.severity === "critical").length;
   const highCount = vulns.filter((v) => v.severity === "high").length;

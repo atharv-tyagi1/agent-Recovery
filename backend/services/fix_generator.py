@@ -2,10 +2,10 @@ import os
 import json
 import asyncio
 import httpx
-from services.qwen import DEMO_MODE, OPENROUTER_API_KEY
+from services.qwen import DEMO_MODE, GEMINI_API_KEY, _call_gemini
 
 async def generate_fix(code: str, vuln_type: str, filepath: str) -> dict:
-    if DEMO_MODE or not OPENROUTER_API_KEY:
+    if DEMO_MODE or not GEMINI_API_KEY:
         await asyncio.sleep(0.5)
         # Generate deterministic mock fix
         fixed_code = code.replace("dangerouslySetInnerHTML", "className")
@@ -36,25 +36,9 @@ Return ONLY valid JSON with keys:
 """
 
     try:
-        async with httpx.AsyncClient(timeout=45.0) as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                    "HTTP-Referer": "http://localhost:3000",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": "qwen/qwen-3-480b-instruct",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "response_format": {"type": "json_object"}
-                }
-            )
-            response.raise_for_status()
-            content = response.json()["choices"][0]["message"]["content"]
-            return json.loads(content)
+        return await _call_gemini(prompt)
     except Exception as e:
-        print(f"OpenRouter Fix Generation Error: {e}")
+        print(f"Gemini Fix Generation Error: {e}")
         return {
             "before": code,
             "after": f"// Unable to reach AI API to generate fix.\n{code}",

@@ -160,20 +160,26 @@ export default function RepositoryPage() {
     if (!scanId) return;
 
     Promise.all([
-      fetch(`http://localhost:8000/api/repository/${scanId}`).then((r) => r.json()),
-      fetch(`http://localhost:8000/api/fixes/${scanId}`).then((r) => r.json())
+      fetch(`http://localhost:8000/api/repository/${scanId}`).then((r) => {
+        if (!r.ok) throw new Error("Failed to fetch repository");
+        return r.json();
+      }),
+      fetch(`http://localhost:8000/api/fixes/${scanId}`).then((r) => {
+        if (!r.ok) throw new Error("Failed to fetch fixes");
+        return r.json();
+      })
     ])
       .then(([repoData, vulnsData]) => {
         setData(repoData);
         setVulns(vulnsData);
-        if (Object.keys(repoData.fileContents).length > 0) {
+        if (repoData.fileContents && Object.keys(repoData.fileContents).length > 0) {
           setSelectedFile(Object.keys(repoData.fileContents)[0]);
         }
       })
-      .catch(console.error);
+      .catch((err) => console.log("Waiting for repository data..."));
   }, [scanId]);
 
-  if (!data) return <div className="p-8 text-center text-muted-foreground">Loading repository...</div>;
+  if (!data || !data.fileContents) return <div className="p-8 text-center text-muted-foreground">Loading repository...</div>;
 
   const content = data.fileContents[selectedFile] || "// Select a file to view its contents";
   const lines = content.split("\n");

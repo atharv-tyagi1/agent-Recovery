@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard,
@@ -17,6 +17,16 @@ import {
   CheckCircle,
   Wrench,
 } from "lucide-react";
+
+// Pages that require a scan_id query parameter
+const SCAN_ID_PAGES = new Set([
+  "/results",
+  "/investigation",
+  "/repository",
+  "/fixes",
+  "/scan-complete",
+  "/report",
+]);
 
 const navGroups = [
   {
@@ -48,6 +58,15 @@ const navGroups = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentScanId = searchParams.get("scan_id");
+
+  const buildHref = (baseHref: string): string => {
+    if (currentScanId && SCAN_ID_PAGES.has(baseHref)) {
+      return `${baseHref}?scan_id=${currentScanId}`;
+    }
+    return baseHref;
+  };
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-[240px] bg-[#0D0D15] border-r border-purple-500/10 flex flex-col z-40">
@@ -78,14 +97,17 @@ export function Sidebar() {
               {group.items.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                 const Icon = item.icon;
+                const needsScanId = SCAN_ID_PAGES.has(item.href) && !currentScanId;
 
                 return (
-                  <Link key={item.href} href={item.href}>
+                  <Link key={item.href} href={buildHref(item.href)}>
                     <motion.div
                       whileHover={{ x: 2 }}
                       className={`relative flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-200 ${
                         isActive
                           ? "text-white bg-purple-500/10"
+                          : needsScanId
+                          ? "text-muted-foreground/40 hover:text-muted-foreground/60 hover:bg-white/[0.02]"
                           : "text-muted-foreground hover:text-foreground hover:bg-white/[0.03]"
                       }`}
                     >
@@ -123,3 +145,4 @@ export function Sidebar() {
     </aside>
   );
 }
+

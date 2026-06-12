@@ -33,11 +33,11 @@ async def get_fixes(scan_id: str):
             "file": f.get('file', v['file_path']),
             "confidence": v.get('confidence', 95),
             "riskReduction": 20 if v['severity'] == 'critical' else 10,
-            "vulnerableCode": f['before_code'],
-            "fixedCode": f['after_code'],
-            "fixExplanation": f['explanation'],
-            "owasp": f['owasp'],
-            "cwe": f['cwe']
+            "vulnerableCode": f.get('before') or f.get('before_code', ''),
+            "fixedCode": f.get('after') or f.get('after_code', ''),
+            "fixExplanation": f.get('why') or f.get('explanation', ''),
+            "owasp": f.get('owasp', ''),
+            "cwe": f.get('cwe', '')
         })
         
     return merged

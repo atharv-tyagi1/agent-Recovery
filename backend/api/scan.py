@@ -8,6 +8,16 @@ from services.detector import run_detection
 from services.qwen import analyze_vulnerability
 from services.fix_generator import generate_fix
 from services.score_engine import calculate_score
+import re
+
+def parse_confidence(val):
+    if isinstance(val, int): return val
+    try:
+        m = re.search(r'\d+', str(val))
+        if m: return int(m.group())
+        return 90
+    except:
+        return 90
 
 router = APIRouter()
 
@@ -100,11 +110,14 @@ async def run_scan_pipeline(scan_id: str):
             {"title": "Potential Vulnerabilities Found", "status": "completed", "duration": "2.4s", "confidence": "100%"}
         ]
         
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        # Database connection will be opened per vulnerability to avoid locking
         
         # Phase 5: AI Explanation and Fix Gen
         for idx, v in enumerate(raw_vulns):
+            # Stagger requests to avoid Gemini rate limits
+            if idx > 0:
+                await asyncio.sleep(1.0)
+            
             # Explain
             ai_exp = await analyze_vulnerability(v['matched_code'], v['type'], v['file_path'])
             v_id = f"vuln_{uuid.uuid4().hex[:8]}"
@@ -114,22 +127,28 @@ async def run_scan_pipeline(scan_id: str):
             f_id = f"fix_{uuid.uuid4().hex[:8]}"
             
             # Update DB
-            cursor.execute("""
-                INSERT INTO vulnerabilities (id, scan_id, type, severity, file_path, line_number, description, impact, confidence)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (v_id, scan_id, v['type'], ai_exp.get('severity', v['severity']), v['file_path'], v['line_number'], ai_exp.get('description', v['description']), ai_exp.get('impact', v['impact']), int(ai_exp.get('confidence', 90))))
-            
-            cursor.execute("""
-                INSERT INTO fixes (id, vulnerability_id, before_code, after_code, explanation, owasp, cwe)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (f_id, v_id, ai_fix.get('before', v['matched_code']), ai_fix.get('after', ''), ai_fix.get('why', ''), ai_fix.get('owasp', v['owasp']), ai_fix.get('cwe', v['cwe'])))
+            conn = get_db_connection()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO vulnerabilities (id, scan_id, type, severity, file_path, line_number, description, impact, confidence)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (v_id, scan_id, v['type'], ai_exp.get('severity', v['severity']), v['file_path'], v['line_number'], ai_exp.get('description', v['description']), ai_exp.get('impact', v['impact']), parse_confidence(ai_exp.get('confidence', 90))))
+                
+                cursor.execute("""
+                    INSERT INTO fixes (id, vulnerability_id, before_code, after_code, explanation, owasp, cwe)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (f_id, v_id, ai_fix.get('before', v['matched_code']), ai_fix.get('after', ''), ai_fix.get('why', ''), ai_fix.get('owasp', v['owasp']), ai_fix.get('cwe', v['cwe'])))
+                conn.commit()
+            finally:
+                conn.close()
             
             # Prepare payload for cache
             vuln_payload = v.copy()
             vuln_payload['id'] = v_id
             vuln_payload['description'] = ai_exp.get('description', v['description'])
             vuln_payload['impact'] = ai_exp.get('impact', v['impact'])
-            vuln_payload['confidence'] = int(ai_exp.get('confidence', 90))
+            vuln_payload['confidence'] = parse_confidence(ai_exp.get('confidence', 90))
             vulns_data.append(vuln_payload)
             
             fix_payload = ai_fix.copy()
@@ -160,9 +179,13 @@ async def run_scan_pipeline(scan_id: str):
         # Phase 6: Score Engine
         scores = calculate_score(vulns_data)
         
-        cursor.execute("UPDATE scans SET score_before = ?, score_after = ? WHERE id = ?", (scores['score_before'], scores['score_after'], scan_id))
-        conn.commit()
-        conn.close()
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE scans SET score_before = ?, score_after = ? WHERE id = ?", (scores['score_before'], scores['score_after'], scan_id))
+            conn.commit()
+        finally:
+            conn.close()
         
         timeline.append({"title": "Investigation Complete", "status": "completed", "duration": "0.1s", "confidence": "100%"})
         

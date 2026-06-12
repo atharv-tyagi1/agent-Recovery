@@ -47,8 +47,9 @@ async def upload_repository(file: UploadFile = File(...)):
         )
         conn.commit()
     except Exception as e:
+        print(f"Upload DB Error: {e}")
         conn.rollback()
-        raise HTTPException(status_code=500, detail="Database error occurred.")
+        raise HTTPException(status_code=500, detail=f"Database error occurred: {e}")
     finally:
         conn.close()
         

@@ -29,12 +29,15 @@ export default function FixesPage() {
   useEffect(() => {
     if (!scanId) return;
     fetch(`http://localhost:8000/api/fixes/${scanId}`)
-      .then(res => res.json())
-      .then(data => setVulnerabilities(data))
-      .catch(console.error);
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch fixes");
+        return res.json();
+      })
+      .then(data => setVulnerabilities(Array.isArray(data) ? data : []))
+      .catch((err) => console.log("Waiting for fixes data..."));
   }, [scanId]);
 
-  if (vulnerabilities.length === 0) return <div className="p-8 text-center text-muted-foreground">Loading fixes...</div>;
+  if (!vulnerabilities || vulnerabilities.length === 0) return <div className="p-8 text-center text-muted-foreground">Loading fixes...</div>;
 
   const vuln = vulnerabilities[activeIndex];
 

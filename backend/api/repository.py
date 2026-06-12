@@ -22,7 +22,7 @@ async def get_repository_data(scan_id: str):
         raise HTTPException(status_code=404, detail="Scan not found")
         
     # Get Vulnerabilities for file markers
-    cursor.execute("SELECT id, severity, file_path, title FROM vulnerabilities WHERE scan_id = ?", (scan_id,))
+    cursor.execute("SELECT id, severity, file_path, type FROM vulnerabilities WHERE scan_id = ?", (scan_id,))
     vulns = cursor.fetchall()
     conn.close()
 

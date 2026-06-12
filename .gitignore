@@ -1,0 +1,13 @@
+node_modules/
+.next/
+__pycache__/
+*.py[cod]
+*$py.class
+*.db
+backend/storage/
+.env
+*.zip
+*.png
+*.webp
+*.pdf
+.gemini/

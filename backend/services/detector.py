@@ -25,7 +25,10 @@ RULES = [
         "patterns": [
             re.compile(r"dangerouslySetInnerHTML\s*=\s*\{\{.*\}\}"),
             re.compile(r"\.innerHTML\s*=\s*"),
-            re.compile(r"res\.send\(\s*`.*?\$\{.*?\}.*?`\s*\)")
+            re.compile(r"res\.send\(\s*`.*?\$\{.*?\}.*?`\s*\)"),
+            re.compile(r"\{\{.*\|\s*safe\s*\}\}"),
+            re.compile(r"Markup\("),
+            re.compile(r"render_template_string\(")
         ]
     },
     {
@@ -50,7 +53,8 @@ RULES = [
         "patterns": [
             re.compile(r"hashlib\.md5\("),
             re.compile(r"hashlib\.sha1\("),
-            re.compile(r"password\s*==\s*user\.password")
+            re.compile(r"password\s*==\s*user\.password"),
+            re.compile(r"password\s*=\s*['\"]\{password\}['\"]", re.IGNORECASE)
         ]
     },
     {
@@ -61,9 +65,8 @@ RULES = [
         "owasp": "A01:2021-Broken Access Control",
         "cwe": "CWE-862",
         "patterns": [
-            # A rough heuristic: route has 'admin' but no middleware/check for roles
-            re.compile(r"@app\.route\(['\"]/admin.*['\"]\)\s*\n\s*def\s+[a-zA-Z0-9_]+\(.*?\):\s*\n(?!\s*@require_role|\s*if not current_user\.is_admin)", re.MULTILINE),
-            re.compile(r"router\.(get|post|put|delete)\(['\"]/admin.*['\"],\s*(async\s*)?\(\w+,\s*\w+\)\s*=>\s*\{", re.IGNORECASE)
+            re.compile(r"@(app|router)\.(get|post|put|delete)\(['\"]/(admin|dashboard).*?['\"].*?\)", re.IGNORECASE),
+            re.compile(r"router\.(get|post|put|delete)\(['\"]/(admin|dashboard).*?['\"].*?\)", re.IGNORECASE)
         ]
     }
 ]

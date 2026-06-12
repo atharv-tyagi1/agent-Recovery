@@ -23,12 +23,15 @@ export default function ResultsPage() {
   useEffect(() => {
     if (!scanId) return;
     fetch(`http://localhost:8000/api/scan/${scanId}/results`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch results");
+        return res.json();
+      })
       .then((json) => setData(json))
-      .catch(console.error);
+      .catch((err) => console.log("Waiting for scan results..."));
   }, [scanId]);
 
-  if (!data) return <div className="p-8 text-center text-muted-foreground">Loading results...</div>;
+  if (!data || !data.vulnerabilities) return <div className="p-8 text-center text-muted-foreground">Loading results...</div>;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">

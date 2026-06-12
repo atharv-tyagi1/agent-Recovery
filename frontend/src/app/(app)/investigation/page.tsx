@@ -167,12 +167,15 @@ export default function InvestigationPage() {
   useEffect(() => {
     if (!scanId) return;
     fetch(`http://localhost:8000/api/investigation/${scanId}`)
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch investigation timeline");
+        return res.json();
+      })
       .then(json => setData(json))
-      .catch(console.error);
+      .catch((err) => console.log("Waiting for investigation timeline..."));
   }, [scanId]);
 
-  if (!data) return <div className="p-8 text-center text-muted-foreground">Loading timeline...</div>;
+  if (!data || !data.timeline) return <div className="p-8 text-center text-muted-foreground">Loading timeline...</div>;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">

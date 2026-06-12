@@ -31,12 +31,15 @@ export default function ScanCompletePage() {
   useEffect(() => {
     if (!scanId) return;
     fetch(`http://localhost:8000/api/completion/${scanId}`)
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch completion data");
+        return res.json();
+      })
       .then(json => setData(json))
-      .catch(console.error);
+      .catch((err) => console.log("Waiting for scan completion data..."));
   }, [scanId]);
 
-  if (!data) return <div className="p-8 text-center text-muted-foreground">Loading completion...</div>;
+  if (!data || data.files_analyzed === undefined) return <div className="p-8 text-center text-muted-foreground">Loading completion...</div>;
 
   const metrics = [
     {

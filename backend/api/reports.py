@@ -6,6 +6,7 @@ from services.report_generator import generate_pdf_report
 router = APIRouter()
 
 @router.get("/api/report/{scan_id}")
+@router.get("/api/reports/{scan_id}/pdf")
 async def get_report(scan_id: str):
     try:
         pdf_path = generate_pdf_report(scan_id)
