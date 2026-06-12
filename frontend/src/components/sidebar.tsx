@@ -59,11 +59,24 @@ const navGroups = [
 export function Sidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const currentScanId = searchParams.get("scan_id");
+  const [activeScanId, setActiveScanId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const urlScanId = searchParams.get("scan_id");
+    if (urlScanId) {
+      setActiveScanId(urlScanId);
+      localStorage.setItem("latest_scan_id", urlScanId);
+    } else {
+      const stored = localStorage.getItem("latest_scan_id");
+      if (stored) {
+        setActiveScanId(stored);
+      }
+    }
+  }, [searchParams]);
 
   const buildHref = (baseHref: string): string => {
-    if (currentScanId && SCAN_ID_PAGES.has(baseHref)) {
-      return `${baseHref}?scan_id=${currentScanId}`;
+    if (activeScanId && SCAN_ID_PAGES.has(baseHref)) {
+      return `${baseHref}?scan_id=${activeScanId}`;
     }
     return baseHref;
   };
@@ -97,7 +110,7 @@ export function Sidebar() {
               {group.items.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                 const Icon = item.icon;
-                const needsScanId = SCAN_ID_PAGES.has(item.href) && !currentScanId;
+                const needsScanId = SCAN_ID_PAGES.has(item.href) && !activeScanId;
 
                 return (
                   <Link key={item.href} href={buildHref(item.href)}>

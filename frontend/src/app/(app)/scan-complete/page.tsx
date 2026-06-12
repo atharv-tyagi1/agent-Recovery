@@ -25,8 +25,20 @@ import Link from "next/link";
 
 export default function ScanCompletePage() {
   const searchParams = useSearchParams();
-  const scanId = searchParams.get("scan_id");
+  const [scanId, setScanId] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+    const urlScanId = searchParams.get("scan_id");
+    if (urlScanId) {
+      setScanId(urlScanId);
+    } else {
+      const stored = localStorage.getItem("latest_scan_id");
+      if (stored) {
+        setScanId(stored);
+      }
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!scanId) return;

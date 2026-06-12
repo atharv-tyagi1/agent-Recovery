@@ -1,15 +1,10 @@
 import os
 import uuid
 import shutil
-import zipfile
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from database.db import get_db_connection
+from services.scan_manager import process_repository_zip, UPLOAD_DIR, EXTRACTED_DIR
 
 router = APIRouter()
-
-STORAGE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-UPLOAD_DIR = os.path.join(STORAGE_DIR, "storage", "uploads")
-EXTRACTED_DIR = os.path.join(STORAGE_DIR, "storage", "extracted")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(EXTRACTED_DIR, exist_ok=True)
@@ -27,30 +22,11 @@ async def upload_repository(file: UploadFile = File(...)):
     with open(zip_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
         
-    # Extract ZIP
-    extract_path = os.path.join(EXTRACTED_DIR, scan_id)
-    os.makedirs(extract_path, exist_ok=True)
-    
+    # Extract, save to DB using scan manager
     try:
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(extract_path)
-    except zipfile.BadZipFile:
-        raise HTTPException(status_code=400, detail="Invalid or corrupted ZIP file.")
-        
-    # Create Database Record
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute(
-            "INSERT INTO scans (id, repository_name, status) VALUES (?, ?, ?)",
-            (scan_id, repo_name, "PENDING")
-        )
-        conn.commit()
+        return process_repository_zip(scan_id, repo_name, zip_path)
     except Exception as e:
-        print(f"Upload DB Error: {e}")
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error occurred: {e}")
-    finally:
-        conn.close()
-        
-    return {"scan_id": scan_id}
+        # If extraction/db fails, cleanup the uploaded zip
+        if os.path.exists(zip_path):
+            os.remove(zip_path)
+        raise e

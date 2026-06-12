@@ -2,10 +2,10 @@ import os
 import json
 import asyncio
 import httpx
-from services.qwen import DEMO_MODE, GEMINI_API_KEY, _call_gemini
+from services.qwen import DEMO_MODE, OPENROUTER_API_KEY, _call_qwen
 
 async def generate_fix(code: str, vuln_type: str, filepath: str) -> dict:
-    if DEMO_MODE or not GEMINI_API_KEY:
+    if DEMO_MODE or not OPENROUTER_API_KEY:
         await asyncio.sleep(0.5)
         # Generate deterministic mock fix
         fixed_code = code.replace("dangerouslySetInnerHTML", "className")
@@ -36,9 +36,9 @@ Return ONLY valid JSON with keys:
 """
 
     try:
-        return await _call_gemini(prompt)
+        return await _call_qwen(prompt)
     except Exception as e:
-        print(f"Gemini Fix Generation Error: {e}")
+        print(f"Qwen Fix Generation Error: {e}")
         return {
             "before": code,
             "after": f"// Unable to reach AI API to generate fix.\n{code}",

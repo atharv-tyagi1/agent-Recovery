@@ -7,26 +7,28 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DEMO_MODE = os.getenv("DEMO_MODE", "true").lower() == "true"
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
 MAX_RETRIES = 1
 BASE_DELAY = 1.0  # seconds
 
-async def _call_gemini(prompt: str) -> dict:
-    """Call Gemini API with retry + exponential backoff for 429 rate limits."""
+async def _call_qwen(prompt: str) -> dict:
+    """Call Qwen API via OpenRouter with retry + exponential backoff."""
     last_error = None
     for attempt in range(MAX_RETRIES):
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
-                    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+                    "https://openrouter.ai/api/v1/chat/completions",
                     headers={
-                        "Authorization": f"Bearer {GEMINI_API_KEY}",
-                        "Content-Type": "application/json"
+                        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "http://localhost:8000",
+                        "X-Title": "Agent Phantom"
                     },
                     json={
-                        "model": "gemini-2.5-flash",
+                        "model": "qwen/qwen-3-coder-480b-a35b",
                         "messages": [{"role": "user", "content": prompt}],
                         "response_format": {"type": "json_object"}
                     }
@@ -55,7 +57,7 @@ async def _call_gemini(prompt: str) -> dict:
 
 
 async def analyze_vulnerability(code: str, vuln_type: str, filepath: str) -> dict:
-    if DEMO_MODE or not GEMINI_API_KEY:
+    if DEMO_MODE or not OPENROUTER_API_KEY:
         await asyncio.sleep(0.5) # Simulate API latency
         return {
             "description": f"The file {filepath} contains a {vuln_type} vulnerability due to unsanitized input.",
@@ -81,9 +83,9 @@ Return ONLY valid JSON with keys: description (string), impact (string), severit
 """
 
     try:
-        return await _call_gemini(prompt)
+        return await _call_qwen(prompt)
     except Exception as e:
-        print(f"Gemini Analysis Error: {e}")
+        print(f"Qwen Analysis Error: {e}")
         # Fallback
         return {
             "description": "AI analysis failed. Fallback description provided.",

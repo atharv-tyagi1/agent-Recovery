@@ -22,9 +22,21 @@ import {
 
 export default function FixesPage() {
   const searchParams = useSearchParams();
-  const scanId = searchParams.get("scan_id");
+  const [scanId, setScanId] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [vulnerabilities, setVulnerabilities] = useState<any[]>([]);
+
+  useEffect(() => {
+    const urlScanId = searchParams.get("scan_id");
+    if (urlScanId) {
+      setScanId(urlScanId);
+    } else {
+      const stored = localStorage.getItem("latest_scan_id");
+      if (stored) {
+        setScanId(stored);
+      }
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!scanId) return;

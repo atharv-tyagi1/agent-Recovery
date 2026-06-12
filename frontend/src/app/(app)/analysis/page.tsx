@@ -37,7 +37,7 @@ export default function AnalysisPage() {
           if (data.status === "COMPLETED") {
             clearInterval(interval);
             setTimeout(() => {
-              router.push(`/results?scan_id=${scanId}`);
+              router.push(`/scan-complete?scan_id=${scanId}`);
             }, 1000);
           } else if (data.status === "FAILED") {
             clearInterval(interval);

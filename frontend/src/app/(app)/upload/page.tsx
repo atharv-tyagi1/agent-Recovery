@@ -1,14 +1,16 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { UploadZone } from "@/components/upload-zone";
-import { FolderGit2, FileCode, Code2, Package } from "lucide-react";
+import { GithubImport } from "@/components/github-import";
+import { FolderGit2, FileCode, Code2, Package, Upload as UploadIcon, GitBranch } from "lucide-react";
 
 export default function UploadPage() {
   const router = useRouter();
+  const [uploadMethod, setUploadMethod] = useState<"zip" | "github">("zip");
 
   const handleUploadComplete = (scanId: string) => {
     router.push(`/analysis?scan_id=${scanId}`);
@@ -21,13 +23,50 @@ export default function UploadPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <h1 className="text-2xl font-bold">Upload Repository</h1>
+        <h1 className="text-2xl font-bold">Analyze Repository</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Upload your repository for AI-powered security analysis
+          Upload a ZIP archive or import directly from GitHub
         </p>
       </motion.div>
 
-      <UploadZone onUploadComplete={handleUploadComplete} />
+      {/* Toggle between methods */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+        className="flex p-1 bg-white/5 border border-purple-500/20 rounded-xl w-fit"
+      >
+        <button
+          onClick={() => setUploadMethod("zip")}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+            uploadMethod === "zip"
+              ? "bg-purple-500/20 text-purple-200 shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+          }`}
+        >
+          <UploadIcon className="h-4 w-4" />
+          Upload ZIP
+        </button>
+        <button
+          onClick={() => setUploadMethod("github")}
+          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+            uploadMethod === "github"
+              ? "bg-purple-500/20 text-purple-200 shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+          }`}
+        >
+          <GitBranch className="h-4 w-4" />
+          GitHub URL
+        </button>
+      </motion.div>
+
+      <AnimatePresence mode="wait">
+        {uploadMethod === "zip" ? (
+          <UploadZone key="zip" onUploadComplete={handleUploadComplete} />
+        ) : (
+          <GithubImport key="github" onUploadComplete={handleUploadComplete} />
+        )}
+      </AnimatePresence>
 
       {/* Repository Metadata Card */}
       <motion.div

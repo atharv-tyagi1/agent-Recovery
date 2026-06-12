@@ -12,13 +12,25 @@ import { AlertTriangle, ArrowRight, TrendingUp } from "lucide-react";
 export default function ResultsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const scanId = searchParams.get("scan_id");
+  const [scanId, setScanId] = useState<string | null>(null);
 
   const [data, setData] = useState<{
     security_score: number;
     security_score_after: number;
     vulnerabilities: any[];
   } | null>(null);
+
+  useEffect(() => {
+    const urlScanId = searchParams.get("scan_id");
+    if (urlScanId) {
+      setScanId(urlScanId);
+    } else {
+      const stored = localStorage.getItem("latest_scan_id");
+      if (stored) {
+        setScanId(stored);
+      }
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!scanId) return;
