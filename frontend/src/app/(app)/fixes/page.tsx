@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
@@ -18,13 +18,16 @@ import {
   ChevronRight,
   FileCode,
   Zap,
+  Brain,
 } from "lucide-react";
 
-export default function FixesPage() {
+function FixesPageContent() {
   const searchParams = useSearchParams();
   const [scanId, setScanId] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [vulnerabilities, setVulnerabilities] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const urlScanId = searchParams.get("scan_id");
@@ -40,16 +43,40 @@ export default function FixesPage() {
 
   useEffect(() => {
     if (!scanId) return;
+    setLoading(true);
     fetch(`http://localhost:8000/api/fixes/${scanId}`)
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to fetch fixes");
+      .then(async res => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || "Failed to fetch data");
+        }
         return res.json();
       })
-      .then(data => setVulnerabilities(Array.isArray(data) ? data : []))
-      .catch((err) => console.log("Waiting for fixes data..."));
+      .then(data => {
+        // API returns an array of fix objects directly
+        const fixes = Array.isArray(data) ? data : [];
+        setVulnerabilities(fixes);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.log("Error:", err);
+        if (err.message.includes("rate-limited") || err.message.includes("RATE_LIMITED")) {
+           setError("The free model is currently rate-limited. Please try again later.");
+        } else {
+           setError(err.message || "Scan Failed");
+        }
+        setLoading(false);
+      });
   }, [scanId]);
 
-  if (!vulnerabilities || vulnerabilities.length === 0) return <div className="p-8 text-center text-muted-foreground">Loading fixes...</div>;
+  if (loading) return <div className="p-8 text-center text-muted-foreground">Loading fixes...</div>;
+  if (error) return <div className="p-8 text-center text-red-400">{error}</div>;
+  if (!vulnerabilities || vulnerabilities.length === 0) return (
+    <div className="p-8 text-center text-muted-foreground">
+      <p className="text-lg font-medium mb-2">No fixes available</p>
+      <p className="text-sm">AI-generated fixes were unavailable due to provider rate limits. Static analysis vulnerabilities were detected — check the Investigation page.</p>
+    </div>
+  );
 
   const vuln = vulnerabilities[activeIndex];
 
@@ -302,5 +329,14 @@ export default function FixesPage() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+
+export default function FixesPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <FixesPageContent />
+    </Suspense>
   );
 }

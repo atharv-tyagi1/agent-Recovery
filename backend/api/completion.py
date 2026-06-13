@@ -13,6 +13,15 @@ EXTRACTED_DIR = os.path.join(STORAGE_DIR, "storage", "extracted")
 async def get_completion(scan_id: str):
     cache_file = os.path.join(SCANS_DIR, f"{scan_id}.json")
     if not os.path.exists(cache_file):
+        from database.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT status FROM scans WHERE id = ?", (scan_id,))
+        scan = cursor.fetchone()
+        conn.close()
+        if scan and scan['status'] in ["RATE_LIMITED", "FAILED"]:
+            reason = "The free model is currently rate-limited. Please try again later." if scan['status'] == "RATE_LIMITED" else "Scan failed"
+            raise HTTPException(status_code=400, detail=reason)
         raise HTTPException(status_code=404, detail="Completion data not found")
         
     with open(cache_file, 'r') as f:
@@ -33,6 +42,7 @@ async def get_completion(scan_id: str):
     scores = data.get("scores", {})
     
     return {
+            "ai_available": data.get("ai_available", True),
         "files_analyzed": files_analyzed,
         "threats_found": len(vulns),
         "fixes_generated": len(fixes),

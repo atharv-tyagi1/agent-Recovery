@@ -1,12 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { MetricCard } from "@/components/metric-card";
 import { SecurityGauge } from "@/components/security-gauge";
 import { ActivityFeed } from "@/components/activity-feed";
-import { SeverityBadge } from "@/components/severity-badge";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -21,6 +20,7 @@ import {
   FileCode,
   AlertTriangle,
   ShieldCheck,
+  Loader2,
 } from "lucide-react";
 import {
   PieChart,
@@ -29,15 +29,93 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts";
-import {
-  dashboardStats,
-  threatDistribution,
-  recentScans,
-  activityFeed,
-} from "@/lib/mock-data";
 import Link from "next/link";
 
-export default function DashboardPage() {
+interface DashboardData {
+  dashboardStats: {
+    repositoriesScanned: number;
+    filesAnalyzed: number;
+    vulnerabilitiesFound: number;
+    securityScore: number;
+  };
+  threatDistribution: {
+    name: string;
+    value: number;
+    color: string;
+  }[];
+  recentScans: {
+    id: string;
+    repository: string;
+    status: string;
+    threats: number;
+    date: string;
+    duration: string;
+    filesAnalyzed: number;
+    scoreBefore: number;
+    scoreAfter: number;
+  }[];
+  activityFeed: {
+    id: string;
+    message: string;
+    type: "detection" | "fix" | "report" | "scan" | "improvement";
+    timestamp: string;
+  }[];
+}
+
+function DashboardPageContent() {
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch("http://localhost:8000/api/dashboard")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load dashboard statistics");
+        return res.json();
+      })
+      .then((d) => {
+        if (active) {
+          setData(d);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+        if (active) {
+          setError(err.message || "Failed to load dashboard data.");
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-cyan-400 mb-4" />
+        <p className="text-slate-400 text-sm">Loading dashboard data...</p>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-8 max-w-md text-center">
+          <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-slate-200 mb-2">Error Loading Dashboard</h2>
+          <p className="text-slate-400 text-sm">{error || "No dashboard data found"}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const { dashboardStats, threatDistribution, recentScans, activityFeed } = data;
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -57,7 +135,7 @@ export default function DashboardPage() {
         <MetricCard
           title="Repositories Scanned"
           value={dashboardStats.repositoriesScanned}
-          change="+12 this week"
+          change=""
           changeType="positive"
           icon={FolderGit2}
           iconColor="text-purple-400"
@@ -66,7 +144,7 @@ export default function DashboardPage() {
         <MetricCard
           title="Files Analyzed"
           value={dashboardStats.filesAnalyzed}
-          change="+2,341 this week"
+          change=""
           changeType="positive"
           icon={FileCode}
           iconColor="text-blue-400"
@@ -75,7 +153,7 @@ export default function DashboardPage() {
         <MetricCard
           title="Vulnerabilities Found"
           value={dashboardStats.vulnerabilitiesFound}
-          change="-15% from last week"
+          change=""
           changeType="positive"
           icon={AlertTriangle}
           iconColor="text-orange-400"
@@ -84,7 +162,7 @@ export default function DashboardPage() {
         <MetricCard
           title="Security Score"
           value={`${dashboardStats.securityScore}/100`}
-          change="+7 points"
+          change=""
           changeType="positive"
           icon={ShieldCheck}
           iconColor="text-emerald-400"
@@ -191,51 +269,72 @@ export default function DashboardPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {recentScans.map((scan) => (
-                <TableRow
-                  key={scan.id}
-                  className="border-purple-500/10 hover:bg-white/[0.02] cursor-pointer"
-                >
-                  <TableCell>
-                    <Link href="/results" className="text-sm font-medium hover:text-purple-300 transition-colors">
-                      {scan.repository}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] ${
-                        scan.status === "completed"
-                          ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5"
-                          : scan.status === "in-progress"
-                          ? "text-cyan-400 border-cyan-500/20 bg-cyan-500/5"
-                          : scan.status === "queued"
-                          ? "text-slate-400 border-slate-500/20 bg-slate-500/5"
-                          : "text-red-400 border-red-500/20 bg-red-500/5"
-                      }`}
-                    >
-                      {scan.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <span className={`text-sm font-medium ${
-                      scan.threats > 0 ? "text-orange-400" : "text-muted-foreground"
-                    }`}>
-                      {scan.threats}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {scan.filesAnalyzed.toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {scan.date}
+              {recentScans.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-sm text-slate-400">
+                    No scans found. Upload a repository to start.
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                recentScans.map((scan) => (
+                  <TableRow
+                    key={scan.id}
+                    className="border-purple-500/10 hover:bg-white/[0.02] cursor-pointer"
+                  >
+                    <TableCell>
+                      <Link href={`/results?scan_id=${scan.id}`} className="text-sm font-medium hover:text-purple-300 transition-colors">
+                        {scan.repository}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] uppercase ${
+                          scan.status === "completed"
+                            ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5"
+                            : scan.status === "in-progress"
+                            ? "text-cyan-400 border-cyan-500/20 bg-cyan-500/5"
+                            : scan.status === "queued"
+                            ? "text-slate-400 border-slate-500/20 bg-slate-500/5"
+                            : "text-red-400 border-red-500/20 bg-red-500/5"
+                        }`}
+                      >
+                        {scan.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`text-sm font-medium ${
+                        scan.threats > 0 ? "text-orange-400" : "text-muted-foreground"
+                      }`}>
+                        {scan.threats}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {scan.filesAnalyzed.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {scan.date}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </Card>
       </motion.div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-cyan-400 mb-4" />
+        <p className="text-slate-400 text-sm">Loading...</p>
+      </div>
+    }>
+      <DashboardPageContent />
+    </Suspense>
   );
 }

@@ -5,7 +5,7 @@ import asyncio
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from database.db import get_db_connection
 from services.detector import run_detection
-from services.qwen import analyze_vulnerability
+from services.gemini import analyze_vulnerability, RateLimitError
 from services.fix_generator import generate_fix
 from services.score_engine import calculate_score
 import re
@@ -96,7 +96,7 @@ async def run_scan_pipeline(scan_id: str):
             
         update_status(scan_id, "RUNNING", 70, f"Found {len(raw_vulns)} Potential Vulnerabilities", {
             "current_focus": "AI Analysis",
-            "current_hypothesis": "Validating findings using Qwen 3 480B",
+            "current_hypothesis": "Validating findings using Gemini 2.5 Flash",
             "evidence": [f"Matched {len(raw_vulns)} regex patterns"],
             "confidence": "90",
             "next_action": "Generate secure patches"
@@ -110,63 +110,111 @@ async def run_scan_pipeline(scan_id: str):
             {"title": "Potential Vulnerabilities Found", "status": "completed", "duration": "2.4s", "confidence": "100%"}
         ]
         
-        # Database connection will be opened per vulnerability to avoid locking
-        
-        # Phase 5: AI Explanation and Fix Gen
-        for idx, v in enumerate(raw_vulns):
-            # Stagger requests to avoid Gemini rate limits
-            if idx > 0:
-                await asyncio.sleep(1.0)
-            
-            # Explain
-            ai_exp = await analyze_vulnerability(v['matched_code'], v['type'], v['file_path'])
-            v_id = f"vuln_{uuid.uuid4().hex[:8]}"
-            
-            # Generate Fix
-            ai_fix = await generate_fix(v['matched_code'], v['type'], v['file_path'])
-            f_id = f"fix_{uuid.uuid4().hex[:8]}"
-            
-            # Update DB
-            conn = get_db_connection()
-            try:
-                cursor = conn.cursor()
+        # Immediate persistence of static findings
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            for v in raw_vulns:
+                v_id = f"vuln_{uuid.uuid4().hex[:8]}"
+                f_id = f"fix_{uuid.uuid4().hex[:8]}"
+                v['id'] = v_id
+                v['fix_id'] = f_id
+                
                 cursor.execute("""
                     INSERT INTO vulnerabilities (id, scan_id, type, severity, file_path, line_number, description, impact, confidence)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (v_id, scan_id, v['type'], ai_exp.get('severity', v['severity']), v['file_path'], v['line_number'], ai_exp.get('description', v['description']), ai_exp.get('impact', v['impact']), parse_confidence(ai_exp.get('confidence', 90))))
+                """, (v_id, scan_id, v['type'], v['severity'], v['file_path'], v['line_number'], v['description'], v['impact'], 90))
                 
                 cursor.execute("""
                     INSERT INTO fixes (id, vulnerability_id, before_code, after_code, explanation, owasp, cwe)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (f_id, v_id, ai_fix.get('before', v['matched_code']), ai_fix.get('after', ''), ai_fix.get('why', ''), ai_fix.get('owasp', v['owasp']), ai_fix.get('cwe', v['cwe'])))
-                conn.commit()
-            finally:
-                conn.close()
+                """, (f_id, v_id, v['matched_code'], "", "AI analysis pending...", v['owasp'], v['cwe']))
+                
+                vulns_data.append({
+                    **v,
+                    'ai_metadata': {'source': 'static', 'note': 'Static detection rule matched.'}
+                })
+                fixes_data.append({
+                    'id': f_id,
+                    'vulnerability_id': v_id,
+                    'severity': v['severity'],
+                    'title': v['type'],
+                    'file': v['file_path'],
+                    'before': v['matched_code'],
+                    'after': '',
+                    'why': 'AI analysis pending...',
+                    'fix_available': False,
+                    'ai_metadata': {'source': 'static', 'note': 'AI fix pending...'}
+                })
+            conn.commit()
+        finally:
+            conn.close()
+
+        ai_available = True
+        
+        # Phase 5: AI Explanation and Fix Gen
+        for idx, v in enumerate(raw_vulns):
+            if not ai_available:
+                break
+                
+            if idx > 0:
+                await asyncio.sleep(1.0)
             
-            # Prepare payload for cache
-            vuln_payload = v.copy()
-            vuln_payload['id'] = v_id
-            vuln_payload['description'] = ai_exp.get('description', v['description'])
-            vuln_payload['impact'] = ai_exp.get('impact', v['impact'])
-            vuln_payload['confidence'] = parse_confidence(ai_exp.get('confidence', 90))
-            vulns_data.append(vuln_payload)
-            
-            fix_payload = ai_fix.copy()
-            fix_payload['id'] = f_id
-            fix_payload['vulnerability_id'] = v_id
-            fix_payload['severity'] = vuln_payload['severity']
-            fix_payload['title'] = vuln_payload['type']
-            fix_payload['file'] = vuln_payload['file_path']
-            fixes_data.append(fix_payload)
-            
-            timeline.append({
-                "title": f"Verified {v['type']}",
-                "status": "completed",
-                "duration": "1.5s",
-                "confidence": str(ai_exp.get('confidence', 90)) + "%",
-                "reasoning": f"Confirmed vulnerability in {v['file_path']} via AI AST reasoning.",
-                "evidence": v['matched_code']
-            })
+            try:
+                # Explain
+                ai_exp, exp_meta = await analyze_vulnerability(v['matched_code'], v['type'], v['file_path'])
+                
+                # Generate Fix
+                ai_fix, fix_meta = await generate_fix(v['matched_code'], v['type'], v['file_path'])
+                
+                # Update DB
+                conn = get_db_connection()
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE vulnerabilities SET severity=?, description=?, impact=?, confidence=? WHERE id=?
+                    """, (ai_exp.get('severity', v['severity']), ai_exp.get('description', v['description']), ai_exp.get('impact', v['impact']), parse_confidence(ai_exp.get('confidence', 90)), v['id']))
+                    
+                    cursor.execute("""
+                        UPDATE fixes SET after_code=?, explanation=?, owasp=?, cwe=? WHERE id=?
+                    """, (ai_fix.get('after', ''), ai_fix.get('why', ''), ai_fix.get('owasp', v['owasp']), ai_fix.get('cwe', v['cwe']), v['fix_id']))
+                    conn.commit()
+                finally:
+                    conn.close()
+                
+                # Update cache payloads
+                v_payload = next(x for x in vulns_data if x['id'] == v['id'])
+                v_payload['severity'] = ai_exp.get('severity', v['severity'])
+                v_payload['description'] = ai_exp.get('description', v['description'])
+                v_payload['impact'] = ai_exp.get('impact', v['impact'])
+                v_payload['confidence'] = parse_confidence(ai_exp.get('confidence', 90))
+                v_payload['ai_metadata'] = exp_meta
+                
+                f_payload = next(x for x in fixes_data if x['id'] == v['fix_id'])
+                f_payload['after'] = ai_fix.get('after', '')
+                f_payload['why'] = ai_fix.get('why', '')
+                f_payload['fix_available'] = True
+                f_payload['ai_metadata'] = fix_meta
+                
+                timeline.append({
+                    "title": f"Verified {v['type']}",
+                    "status": "completed",
+                    "duration": "1.5s",
+                    "confidence": str(ai_exp.get('confidence', 90)) + "%",
+                    "reasoning": f"Confirmed vulnerability in {v['file_path']} via AI AST reasoning.",
+                    "evidence": v['matched_code']
+                })
+            except RateLimitError:
+                ai_available = False
+                # Mark remaining items in cache as degraded
+                for remaining_f in fixes_data:
+                    if not remaining_f.get('fix_available'):
+                        remaining_f['reason'] = "Provider rate limited"
+                        remaining_f['ai_metadata'] = {"source": "static", "note": "AI fix generation unavailable due to rate limit."}
+                for remaining_v in vulns_data:
+                    if remaining_v.get('ai_metadata', {}).get('note') == 'Static detection rule matched.':
+                        remaining_v['ai_metadata'] = {"source": "static", "note": "AI validation unavailable due to rate limit."}
+                break
 
         update_status(scan_id, "RUNNING", 90, "Patches Generated", {
             "current_focus": "Score Engine",
@@ -195,7 +243,9 @@ async def run_scan_pipeline(scan_id: str):
             "scores": scores,
             "vulnerabilities": vulns_data,
             "fixes": fixes_data,
-            "timeline": timeline
+            "timeline": timeline,
+            "ai_available": ai_available,
+            "degraded_mode": not ai_available
         }
         
         with open(os.path.join(SCANS_DIR, f"{scan_id}.json"), 'w') as f:
@@ -225,8 +275,8 @@ async def start_scan(scan_id: str, background_tasks: BackgroundTasks):
     if not scan:
         raise HTTPException(status_code=404, detail="Scan ID not found")
         
-    if scan['status'] in ["RUNNING", "COMPLETED"]:
-        return {"message": "Scan already running or completed"}
+    if scan['status'] == "RUNNING": raise HTTPException(status_code=400, detail="Scan is already running")
+    if scan['status'] in ["COMPLETED", "FAILED", "RATE_LIMITED"]: raise HTTPException(status_code=400, detail="Scan has already been processed and is immutable. Please upload a new repository to start a fresh scan.")
         
     # Start background task
     background_tasks.add_task(run_scan_pipeline, scan_id)

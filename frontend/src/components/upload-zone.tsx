@@ -17,6 +17,12 @@ export function UploadZone({ onUploadComplete, className = "" }: UploadZoneProps
   const [progress, setProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Reset to idle state whenever the component mounts (e.g., user navigates back to upload)
+  React.useEffect(() => {
+    setState("idle");
+    setProgress(0);
+  }, []);
+
   const performUpload = async (file: File) => {
     setState("uploading");
     setProgress(20);

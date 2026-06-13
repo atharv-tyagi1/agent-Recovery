@@ -94,7 +94,7 @@ export default function LandingPage() {
           >
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-purple-500/20 bg-purple-500/5 text-xs text-purple-300 mb-8">
               <Zap className="h-3 w-3" />
-              <span>Powered by Qwen 3 480B</span>
+              <span>Powered by Gemini 2.5 Flash</span>
             </div>
           </motion.div>
 

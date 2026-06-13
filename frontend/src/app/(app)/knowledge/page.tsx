@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -222,7 +222,7 @@ function KnowledgeDetail({
   );
 }
 
-export default function KnowledgePage() {
+function KnowledgePageContent() {
   const [selectedEntry, setSelectedEntry] = useState<KnowledgeEntry | null>(null);
 
   return (
@@ -274,5 +274,14 @@ export default function KnowledgePage() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+
+export default function KnowledgePage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <KnowledgePageContent />
+    </Suspense>
   );
 }

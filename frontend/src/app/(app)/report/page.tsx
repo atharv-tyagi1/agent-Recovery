@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
@@ -17,13 +17,15 @@ import {
   CheckCircle,
   Clock,
   FileText,
+  Brain,
 } from "lucide-react";
 
-export default function ReportPage() {
+function ReportPageContent() {
   const searchParams = useSearchParams();
   const [scanId, setScanId] = useState<string | null>(null);
   const [vulns, setVulns] = useState<any[]>([]);
   const [completion, setCompletion] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const urlScanId = searchParams.get("scan_id");
@@ -53,7 +55,14 @@ export default function ReportPage() {
       setVulns(Array.isArray(vulnsData) ? vulnsData : []);
       setCompletion(compData);
     })
-    .catch((err) => console.log("Waiting for report data..."));
+    .catch((err) => {
+        console.log("Error:", err);
+        if (err.message.includes("rate-limited") || err.message.includes("RATE_LIMITED")) {
+           setError("The free model is currently rate-limited. Please try again later.");
+        } else {
+           setError(err.message || "Scan Failed");
+        }
+      });
   }, [scanId]);
 
   if (!completion || completion.files_analyzed === undefined) return <div className="p-8 text-center text-muted-foreground">Loading report...</div>;
@@ -288,7 +297,7 @@ export default function ReportPage() {
                   { label: "Scan ID", value: scanId },
                   { label: "Files Scanned", value: completion.files_analyzed },
                   { label: "Scan Duration", value: completion.duration },
-                  { label: "AI Model", value: "Qwen 3 480B" },
+                  { label: "AI Model", value: "Gemini 2.5 Flash" },
                 ].map((item) => (
                   <div key={item.label} className="flex justify-between text-xs">
                     <span className="text-muted-foreground">{item.label}</span>
@@ -301,5 +310,14 @@ export default function ReportPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+
+export default function ReportPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ReportPageContent />
+    </Suspense>
   );
 }

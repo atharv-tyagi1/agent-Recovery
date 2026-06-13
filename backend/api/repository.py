@@ -1,3 +1,5 @@
+from api.scan import SCANS_DIR
+import json
 import os
 from fastapi import APIRouter, HTTPException
 from database.db import get_db_connection
@@ -11,20 +13,21 @@ EXTRACTED_DIR = os.path.join(STORAGE_DIR, "storage", "extracted")
 @router.get("/api/repository/{scan_id}")
 async def get_repository_data(scan_id: str):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Check if scan exists
-    cursor.execute("SELECT id, repository_name FROM scans WHERE id = ?", (scan_id,))
-    scan = cursor.fetchone()
-    
-    if not scan:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Scan not found")
+    try:
+        cursor = conn.cursor()
         
-    # Get Vulnerabilities for file markers
-    cursor.execute("SELECT id, severity, file_path, type FROM vulnerabilities WHERE scan_id = ?", (scan_id,))
-    vulns = cursor.fetchall()
-    conn.close()
+        # Check if scan exists
+        cursor.execute("SELECT id, repository_name FROM scans WHERE id = ?", (scan_id,))
+        scan = cursor.fetchone()
+        
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+            
+        # Get Vulnerabilities for file markers
+        cursor.execute("SELECT id, severity, file_path, type FROM vulnerabilities WHERE scan_id = ?", (scan_id,))
+        vulns = cursor.fetchall()
+    finally:
+        conn.close()
 
     extract_path = os.path.join(EXTRACTED_DIR, scan_id)
     if not os.path.exists(extract_path):
@@ -47,6 +50,20 @@ async def get_repository_data(scan_id: str):
     # This is a simplified approach: in frontend we just need the `vulnerabilities` array on the file node.
     # The frontend already maps vulns to files. We can just send the tree and the list of vulns.
     
+    def annotate(node, current_path=""):
+        if node['type'] == 'file':
+            node['vulnerabilities'] = [dict(v) for v in vulns if v['file_path'] == current_path]
+        else:
+            node['vulnerabilities'] = []
+            for child in node.get('children', []):
+                child_path = f"{current_path}/{child['name']}" if current_path else child['name']
+                annotate(child, child_path)
+    
+    # Start annotation from the root's children, because the root itself represents the repo root ""
+    tree['vulnerabilities'] = []
+    for child in tree.get('children', []):
+        annotate(child, child['name'])
+
     # Let's also send file_contents. For MVP, read all text files into a dict.
     # Warning: In real prod, don't send all files at once. But MVP requires it to match frontend.
     file_contents = {}
@@ -60,7 +77,15 @@ async def get_repository_data(scan_id: str):
         except UnicodeDecodeError:
             file_contents[rel_path] = "// Binary file"
 
+
+    cache_file = os.path.join(SCANS_DIR, f"{scan_id}.json")
+    ai_available = True
+    if os.path.exists(cache_file):
+        with open(cache_file, 'r') as f:
+            cdata = json.load(f)
+            ai_available = cdata.get("ai_available", True)
     return {
+            "ai_available": ai_available,
         "tree": tree,
         "fileContents": file_contents
     }

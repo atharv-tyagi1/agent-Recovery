@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { UploadZone } from "@/components/upload-zone";
 import { GithubImport } from "@/components/github-import";
 import { FolderGit2, FileCode, Code2, Package, Upload as UploadIcon, GitBranch } from "lucide-react";
 
-export default function UploadPage() {
+function UploadPageContent() {
   const router = useRouter();
   const [uploadMethod, setUploadMethod] = useState<"zip" | "github">("zip");
 
@@ -126,5 +126,14 @@ export default function UploadPage() {
         </Card>
       </motion.div>
     </div>
+  );
+}
+
+
+export default function UploadPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <UploadPageContent />
+    </Suspense>
   );
 }

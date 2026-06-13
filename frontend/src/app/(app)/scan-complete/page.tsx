@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { AnimatedCounter } from "@/components/animated-counter";
 import { SecurityGauge } from "@/components/security-gauge";
 import {
   CheckCircle,
+  Brain,
   FileCode,
   AlertTriangle,
   Wrench,
@@ -23,10 +24,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-export default function ScanCompletePage() {
+function ScanCompletePageContent() {
   const searchParams = useSearchParams();
   const [scanId, setScanId] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const urlScanId = searchParams.get("scan_id");
@@ -43,17 +45,70 @@ export default function ScanCompletePage() {
   useEffect(() => {
     if (!scanId) return;
     fetch(`http://localhost:8000/api/completion/${scanId}`)
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to fetch completion data");
+      .then(async res => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || "Failed to fetch data");
+        }
         return res.json();
       })
       .then(json => setData(json))
-      .catch((err) => console.log("Waiting for scan completion data..."));
+      .catch((err) => {
+        console.log("Error:", err);
+        if (err.message.includes("rate-limited") || err.message.includes("RATE_LIMITED")) {
+           setError("The free model is currently rate-limited. Please try again later.");
+        } else {
+           setError(err.message || "Scan Failed");
+        }
+      });
   }, [scanId]);
 
-  if (!data || data.files_analyzed === undefined) return <div className="p-8 text-center text-muted-foreground">Loading completion...</div>;
+    if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8">
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-8 max-w-md text-center">
+          <h2 className="text-xl font-bold text-slate-200 mb-2">Scan Error</h2>
+          <p className="text-slate-400">{error}</p>
+        </div>
+      </div>
+    );
+  }
+if (!data || data.files_analyzed === undefined) return <div className="p-8 text-center text-muted-foreground">Loading completion...</div>;
 
-  const metrics = [
+  const metrics = data.ai_available === false ? [
+    {
+      label: "Files Analyzed",
+      value: data.files_analyzed,
+      icon: FileCode,
+      color: "text-blue-400",
+      bgColor: "bg-blue-500/10",
+      borderColor: "border-blue-500/10",
+    },
+    {
+      label: "Static Findings",
+      value: data.threats_found,
+      icon: AlertTriangle,
+      color: "text-red-400",
+      bgColor: "bg-red-500/10",
+      borderColor: "border-red-500/10",
+    },
+    {
+      label: "AI Findings",
+      value: "0",
+      icon: Brain,
+      color: "text-yellow-400",
+      bgColor: "bg-yellow-500/10",
+      borderColor: "border-yellow-500/10",
+    },
+    {
+      label: "AI Available",
+      value: "No",
+      icon: Shield,
+      color: "text-yellow-400",
+      bgColor: "bg-yellow-500/10",
+      borderColor: "border-yellow-500/10",
+    },
+  ] : [
     {
       label: "Files Analyzed",
       value: data.files_analyzed,
@@ -212,7 +267,7 @@ export default function ScanCompletePage() {
             >
               <Sparkles className="h-3 w-3 text-purple-400" />
               <span>
-                Powered by <span className="font-semibold text-purple-300">Qwen 3 480B</span> •
+                Powered by <span className="font-semibold text-purple-300">Gemini 2.5 Flash</span> •
                 Scan Duration: {data.duration} • Scan ID: {scanId}
               </span>
             </motion.div>
@@ -312,5 +367,14 @@ export default function ScanCompletePage() {
         </div>
       </motion.div>
     </div>
+  );
+}
+
+
+export default function ScanCompletePage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ScanCompletePageContent />
+    </Suspense>
   );
 }

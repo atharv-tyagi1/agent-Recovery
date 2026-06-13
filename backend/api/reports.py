@@ -1,3 +1,5 @@
+from api.scan import SCANS_DIR
+import json
 import os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse

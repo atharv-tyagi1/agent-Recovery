@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
@@ -159,10 +159,11 @@ function StepCard({ step, index }: { step: InvestigationStep | any; index: numbe
   );
 }
 
-export default function InvestigationPage() {
+function InvestigationPageContent() {
   const searchParams = useSearchParams();
   const [scanId, setScanId] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const urlScanId = searchParams.get("scan_id");
@@ -179,18 +180,49 @@ export default function InvestigationPage() {
   useEffect(() => {
     if (!scanId) return;
     fetch(`http://localhost:8000/api/investigation/${scanId}`)
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to fetch investigation timeline");
+      .then(async res => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || "Failed to fetch data");
+        }
         return res.json();
       })
       .then(json => setData(json))
-      .catch((err) => console.log("Waiting for investigation timeline..."));
+      .catch((err) => {
+        console.log("Error:", err);
+        if (err.message.includes("rate-limited") || err.message.includes("RATE_LIMITED")) {
+           setError("The free model is currently rate-limited. Please try again later.");
+        } else {
+           setError(err.message || "Scan Failed");
+        }
+      });
   }, [scanId]);
 
-  if (!data || !data.timeline) return <div className="p-8 text-center text-muted-foreground">Loading timeline...</div>;
+    if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8">
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-8 max-w-md text-center">
+          <h2 className="text-xl font-bold text-slate-200 mb-2">Scan Error</h2>
+          <p className="text-slate-400">{error}</p>
+        </div>
+      </div>
+    );
+  }
+if (!data || !data.timeline) return <div className="p-8 text-center text-muted-foreground">Loading timeline...</div>;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      {data.ai_available === false && (
+        <div className="mb-6 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center gap-3">
+          <div className="p-2 bg-yellow-500/20 rounded-lg">
+            <Brain className="h-5 w-5 text-yellow-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-yellow-200">Degraded Mode</h3>
+            <p className="text-xs text-yellow-400/80">AI validation unavailable. Showing static analysis findings.</p>
+          </div>
+        </div>
+      )}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -386,5 +418,14 @@ export default function InvestigationPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+
+export default function InvestigationPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <InvestigationPageContent />
+    </Suspense>
   );
 }

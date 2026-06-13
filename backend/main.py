@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database.db import init_db
-from api import upload, repository, scan, investigation, fixes, completion, reports, github
+from api import upload, repository, scan, investigation, fixes, completion, reports, github, dashboard
 
 # Initialize DB on startup
 init_db()
@@ -27,6 +27,7 @@ app.include_router(investigation.router)
 app.include_router(fixes.router)
 app.include_router(completion.router)
 app.include_router(reports.router)
+app.include_router(dashboard.router)
 
 @app.get("/")
 def root():

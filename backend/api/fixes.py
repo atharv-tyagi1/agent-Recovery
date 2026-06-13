@@ -9,6 +9,15 @@ router = APIRouter()
 async def get_fixes(scan_id: str):
     cache_file = os.path.join(SCANS_DIR, f"{scan_id}.json")
     if not os.path.exists(cache_file):
+        from database.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT status FROM scans WHERE id = ?", (scan_id,))
+        scan = cursor.fetchone()
+        conn.close()
+        if scan and scan['status'] in ["RATE_LIMITED", "FAILED"]:
+            reason = "The free model is currently rate-limited. Please try again later." if scan['status'] == "RATE_LIMITED" else "Scan failed"
+            raise HTTPException(status_code=400, detail=reason)
         raise HTTPException(status_code=404, detail="Fixes data not found")
         
     with open(cache_file, 'r') as f:

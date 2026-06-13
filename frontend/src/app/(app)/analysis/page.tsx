@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { ScanConsole } from "@/components/scan-console";
 import { SecurityGauge } from "@/components/security-gauge";
 import { FileCode, FunctionSquare, Package, AlertTriangle } from "lucide-react";
 
-export default function AnalysisPage() {
+function AnalysisPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const scanId = searchParams.get("scan_id");
@@ -34,7 +34,7 @@ export default function AnalysisPage() {
           const data = await res.json();
           setProgress(data.progress);
           
-          if (data.status === "COMPLETED") {
+        if (data.status === "COMPLETED") {
             clearInterval(interval);
             setTimeout(() => {
               router.push(`/scan-complete?scan_id=${scanId}`);
@@ -147,5 +147,14 @@ export default function AnalysisPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+
+export default function AnalysisPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <AnalysisPageContent />
+    </Suspense>
   );
 }

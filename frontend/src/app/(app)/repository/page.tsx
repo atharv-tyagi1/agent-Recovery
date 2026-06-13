@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
@@ -148,12 +148,13 @@ function TreeNode({
   );
 }
 
-export default function RepositoryPage() {
+function RepositoryPageContent() {
   const searchParams = useSearchParams();
   const [scanId, setScanId] = useState<string | null>(null);
 
   const [selectedFile, setSelectedFile] = useState("");
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const [vulns, setVulns] = useState<any[]>([]);
 
   useEffect(() => {
@@ -188,10 +189,27 @@ export default function RepositoryPage() {
           setSelectedFile(Object.keys(repoData.fileContents)[0]);
         }
       })
-      .catch((err) => console.log("Waiting for repository data..."));
+      .catch((err) => {
+        console.log("Error:", err);
+        if (err.message.includes("rate-limited") || err.message.includes("RATE_LIMITED")) {
+           setError("The free model is currently rate-limited. Please try again later.");
+        } else {
+           setError(err.message || "Scan Failed");
+        }
+      });
   }, [scanId]);
 
-  if (!data || !data.fileContents) return <div className="p-8 text-center text-muted-foreground">Loading repository...</div>;
+    if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8">
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-8 max-w-md text-center">
+          <h2 className="text-xl font-bold text-slate-200 mb-2">Scan Error</h2>
+          <p className="text-slate-400">{error}</p>
+        </div>
+      </div>
+    );
+  }
+if (!data || !data.fileContents) return <div className="p-8 text-center text-muted-foreground">Loading repository...</div>;
 
   const content = data.fileContents[selectedFile] || "// Select a file to view its contents";
   const lines = content.split("\n");
@@ -282,7 +300,7 @@ export default function RepositoryPage() {
             </div>
             <div className="flex-1 overflow-auto bg-[#05050A]">
               <pre className="p-4 text-[12px] font-mono leading-[1.7]">
-                {lines.map((line, i) => {
+                {lines.map((line: string, i: number) => {
                   const lineNum = i + 1;
                   const isVulnLine = vulnLines.has(lineNum);
                   const isComment =
@@ -428,5 +446,14 @@ export default function RepositoryPage() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+
+export default function RepositoryPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <RepositoryPageContent />
+    </Suspense>
   );
 }

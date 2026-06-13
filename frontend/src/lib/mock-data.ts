@@ -345,7 +345,7 @@ export const scanLogLines = [
   { text: "$ phantom-scan --mode deep --target acme/web-platform", delay: 0 },
   { text: "", delay: 200 },
   { text: "[INIT] Agent Phantom v3.2.1 initialized", delay: 400 },
-  { text: "[INIT] AI Model: Qwen 3 480B loaded", delay: 700 },
+  { text: "[INIT] AI Model: Gemini 2.5 Flash loaded", delay: 700 },
   { text: "[INIT] Security rules database: 14,832 rules", delay: 1000 },
   { text: "", delay: 1200 },
   { text: "[LOAD] Cloning repository...", delay: 1400 },
@@ -631,7 +631,7 @@ export const agentReasoning = {
   ],
   confidence: 98,
   nextAction: "Generate Secure Patch",
-  model: "Qwen 3 480B",
+  model: "Gemini 2.5 Flash",
   tokensUsed: 24847,
   reasoningSteps: 156,
 };

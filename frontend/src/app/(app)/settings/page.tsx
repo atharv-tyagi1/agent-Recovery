@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import {
   Webhook,
 } from "lucide-react";
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const [scanMode, setScanMode] = useState<"quick" | "standard" | "deep">("deep");
   const [notifications, setNotifications] = useState({
     email: true,
@@ -77,7 +77,7 @@ export default function SettingsPage() {
               <Cpu className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-sm font-semibold">Qwen 3 480B</p>
+              <p className="text-sm font-semibold">Gemini 2.5 Flash</p>
               <p className="text-xs text-muted-foreground">
                 State-of-the-art reasoning model for deep security analysis
               </p>
@@ -237,5 +237,14 @@ export default function SettingsPage() {
         </Button>
       </motion.div>
     </div>
+  );
+}
+
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SettingsPageContent />
+    </Suspense>
   );
 }

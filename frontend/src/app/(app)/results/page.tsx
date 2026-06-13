@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { SecurityGauge } from "@/components/security-gauge";
 import { SeverityBadge } from "@/components/severity-badge";
 import { AlertTriangle, ArrowRight, TrendingUp } from "lucide-react";
 
-export default function ResultsPage() {
+function ResultsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [scanId, setScanId] = useState<string | null>(null);
@@ -141,5 +141,14 @@ export default function ResultsPage() {
         ))}
       </div>
     </div>
+  );
+}
+
+
+export default function ResultsPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ResultsPageContent />
+    </Suspense>
   );
 }
