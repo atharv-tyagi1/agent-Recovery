@@ -56,6 +56,11 @@ def init_db():
         )
     ''')
 
+    # Create Indexes for optimization
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_vulnerabilities_scan_id ON vulnerabilities(scan_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_fixes_vulnerability_id ON fixes(vulnerability_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_scans_status_created_at ON scans(status, created_at)')
+
     conn.commit()
     conn.close()
 

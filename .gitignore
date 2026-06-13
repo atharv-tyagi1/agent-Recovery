@@ -11,3 +11,4 @@ backend/storage/
 *.webp
 *.pdf
 .gemini/
+.cleanup_archive/
