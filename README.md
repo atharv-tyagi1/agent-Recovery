@@ -348,11 +348,8 @@ This allows deeper analysis than isolated vulnerability detection.
 
 Our goal is to make security analysis faster, more accessible, and more intelligent by combining static analysis, AI reasoning, and automated remediation into a unified developer experience.
 
----
-
-## 👥 Team
 
 **Project:** Agent Phantom  
 **Future Platform:** Agent Phantom Recovery
 
-Built with ❤️ for innovation, cybersecurity, and autonomous software security research.
+Built for innovation, cybersecurity, and autonomous software security research.
